@@ -1,9 +1,22 @@
 name: Deploy Remotion Lambda
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
+    inputs:
+      aws_access_key_id:
+        description: 'AWS Access Key ID'
+        required: true
+        type: string
+      aws_secret_access_key:
+        description: 'AWS Secret Access Key'
+        required: true
+        type: string
+        sensitive: true
+      aws_region:
+        description: 'AWS Region'
+        required: false
+        default: 'us-east-1'
+        type: string
 
 jobs:
   deploy:
@@ -24,14 +37,15 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-access-key-id: ${{ inputs.aws_access_key_id }}
+          aws-secret-access-key: ${{ inputs.aws_secret_access_key }}
+          aws-region: ${{ inputs.aws_region }}
 
       - name: Deploy Remotion Lambda functions
         run: npx remotion lambda deploy
 
       - name: Output deployed info
         run: |
-          echo "Lambda functions deployed successfully!"
-          echo "Render command: npx remotion lambda render <composition> <output> --region us-east-1"
+          echo "✅ Lambda functions deployed successfully!"
+          echo "Reminder: Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as repository secrets"
+          echo "for automated workflow runs (Settings → Secrets and variables → Actions)"

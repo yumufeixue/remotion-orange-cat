@@ -1,16 +1,32 @@
 name: Render Video
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
     inputs:
       composition:
-        description: 'Composition name (e.g. src/index.ts)'
+        description: 'Composition (e.g. src/index.ts)'
         required: true
         default: 'src/index.ts'
+        type: string
       output:
-        description: 'Output filename'
+        description: 'Output filename (e.g. out/orange-cat-cooking.mp4)'
         required: true
         default: 'out/orange-cat-cooking.mp4'
+        type: string
+      aws_access_key_id:
+        description: 'AWS Access Key ID'
+        required: true
+        type: string
+      aws_secret_access_key:
+        description: 'AWS Secret Access Key'
+        required: true
+        type: string
+        sensitive: true
+      aws_region:
+        description: 'AWS Region'
+        required: false
+        default: 'us-east-1'
+        type: string
 
 jobs:
   render:
@@ -31,22 +47,22 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-access-key-id: ${{ inputs.aws_access_key_id }}
+          aws-secret-access-key: ${{ inputs.aws_secret_access_key }}
+          aws-region: ${{ inputs.aws_region }}
 
       - name: Render video on Lambda
         run: |
-          npx remotion lambda render "${{ github.event.inputs.composition }}" "${{ github.event.inputs.output }}" --region us-east-1
+          npx remotion lambda render "${{ inputs.composition }}" "${{ inputs.output }}" --region ${{ inputs.aws_region }}
 
       - name: Upload video artifact
         uses: actions/upload-artifact@v4
         with:
           name: remotion-video
-          path: ${{ github.event.inputs.output }}
+          path: ${{ inputs.output }}
           retention-days: 7
 
-      - name: Get video info
+      - name: Summary
         run: |
-          echo "Video rendered: ${{ github.event.inputs.output }}"
-          ls -lh "${{ github.event.inputs.output }}"
+          echo "✅ Video rendered: ${{ inputs.output }}"
+          ls -lh "${{ inputs.output }}"
