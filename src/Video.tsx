@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   AbsoluteFill,
   Sequence,
@@ -6,266 +6,286 @@ import {
   useVideoConfig,
   interpolate,
   spring,
+  Video,
+  Img,
+  useVideoTimeline,
 } from 'remotion';
+
+// ============ Props 类型 ============
+export interface SurgeryVideoProps {
+  hospitalName: string;
+  videoUrl1?: string;
+  videoUrl2?: string;
+  ctImageUrl?: string;
+  seed?: number;
+  accentColor?: string;
+}
 
 // ============ 工具函数 ============
 const fadeIn = (frame: number, delay = 0) =>
   interpolate(Math.max(0, frame - delay), [0, 20], [0, 1]);
 
-const bounce = (frame: number, config: { damping?: number; stiffness?: number } = {}) =>
-  spring({ frame, fps: 30, config: { damping: 200, stiffness: 100, ...config } });
-
-const bounceIn = (frame: number, delay = 0, config: { damping?: number; stiffness?: number } = {}) =>
+const bounce = (frame: number, delay = 0, config = {}) =>
   spring({ frame: Math.max(0, frame - delay), fps: 30, config: { damping: 200, stiffness: 100, ...config } });
 
-// ============ 场景1: 橘猫大厨登场 ============
-const ChefScene: React.FC = () => {
+// 简单伪随机（基于 seed）
+const seededRandom = (seed: number, index: number) => {
+  const x = Math.sin(seed * 9999 + index) * 10000;
+  return x - Math.floor(x);
+};
+
+// 从视频 URL 列表随机选一个
+const pickRandom = (urls: string[], seed: number, index: number) => {
+  const idx = Math.floor(seededRandom(seed, index) * urls.length);
+  return urls[idx] || urls[0];
+};
+
+// ============ 场景1: 医院名称片头 (0-90帧 = 3秒) ============
+const OpeningScene: React.FC<{ hospitalName: string; accentColor: string }> = ({
+  hospitalName,
+  accentColor,
+}) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
 
-  // 橘猫整体弹入
-  const catBounce = bounce(frame);
-
-  // 围裙从下方滑入
-  const apronSlide = interpolate(Math.max(0, frame - 15), [0, 25], [80, 0]);
-
-  // 星星闪烁
-  const starVisible = frame > 10 ? 1 : 0;
+  const titleScale = bounce(frame, 0, { damping: 180, stiffness: 90 });
+  const titleY = interpolate(bounce(frame, 0), [0.95, 1], [0, 0]);
+  const subtitleOpacity = fadeIn(frame, 25);
+  const lineScaleX = interpolate(Math.max(0, frame - 40), [0, 30], [0, 1]);
+  const bottomFade = fadeIn(frame, 60);
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#FFF8E7',
+        backgroundColor: '#0a1628',
         justifyContent: 'center',
         alignItems: 'center',
-        fontFamily: 'Arial, sans-serif',
+        overflow: 'hidden',
       }}
     >
-      {/* 顶部标题 */}
+      {/* 背景光晕 */}
       <div
         style={{
           position: 'absolute',
-          top: 40,
-          color: '#E67E22',
-          fontSize: 36,
-          fontWeight: 700,
-          opacity: fadeIn(frame, 0),
+          width: 600,
+          height: 600,
+          borderRadius: '50%',
+          background: `radial-gradient(circle, ${accentColor}30 0%, transparent 70%)`,
+          transform: `scale(${interpolate(frame, [0, 60], [0.5, 1.2])})`,
+          opacity: fadeIn(frame, 5),
         }}
-      >
-        🍊 橘猫大厨上线啦！
-      </div>
+      />
 
-      {/* 星星装饰 */}
-      {starVisible > 0 && (
-        <div style={{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)' }}>
-          {['✨', '⭐', '✨'].map((star, i) => (
-            <span
-              key={i}
-              style={{
-                fontSize: 24,
-                position: 'absolute',
-                left: (i - 1) * 50,
-                opacity: interpolate(frame, [10 + i * 5, 20 + i * 5], [0, 1]),
-                transform: `scale(${interpolate(frame, [10 + i * 5, 20 + i * 5], [0.5, 1])})`,
-              }}
-            >
-              {star}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* 橘猫本体 */}
+      {/* 主标题 */}
       <div
         style={{
-          transform: `scale(${catBounce})`,
           textAlign: 'center',
+          transform: `scale(${titleScale}) translateY(${titleY}px)`,
         }}
       >
-        {/* 猫头 */}
-        <div style={{ fontSize: 120 }}>🐱</div>
-        {/* 厨师帽 */}
         <div
           style={{
-            fontSize: 60,
-            marginTop: -20,
-            marginLeft: 10,
-            transform: `rotate(${interpolate(frame, [5, 15], [-10, 5])}deg)`,
+            color: 'white',
+            fontSize: 72,
+            fontFamily: 'Arial, sans-serif',
+            fontWeight: 800,
+            letterSpacing: '0.1em',
+            textShadow: `0 0 40px ${accentColor}`,
+            opacity: fadeIn(frame, 0),
           }}
         >
-          👨‍🍳
+          {hospitalName}
         </div>
-        {/* 猫身体 + 围裙 */}
+
         <div
           style={{
-            fontSize: 100,
-            marginTop: -10,
-            position: 'relative',
+            color: accentColor,
+            fontSize: 28,
+            fontFamily: 'Arial, sans-serif',
+            marginTop: 16,
+            letterSpacing: '0.3em',
+            opacity: subtitleOpacity,
           }}
         >
-          {/* 围裙 */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 30,
-              left: '50%',
-              transform: `translateX(-50%) translateY(${apronSlide}px)`,
-              fontSize: 50,
-            }}
-          >
-            👏
-          </div>
-          🐾
+          学术汇报
         </div>
+
+        {/* 装饰线 */}
+        <div
+          style={{
+            width: 200,
+            height: 3,
+            background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)`,
+            margin: '24px auto 0',
+            transform: `scaleX(${lineScaleX})`,
+            borderRadius: 2,
+          }}
+        />
       </div>
 
-      {/* 底部说明 */}
+      {/* 底部副标题 */}
       <div
         style={{
           position: 'absolute',
-          bottom: 50,
-          color: '#C0392B',
-          fontSize: 28,
-          fontWeight: 600,
-          opacity: fadeIn(frame, 20),
+          bottom: 60,
+          color: 'rgba(255,255,255,0.4)',
+          fontSize: 18,
+          fontFamily: 'Arial, sans-serif',
+          opacity: bottomFade,
+          letterSpacing: '0.2em',
         }}
       >
-        今晚吃什么好呢？
+        2026 年度学术交流
       </div>
     </AbsoluteFill>
   );
 };
 
-// ============ 场景2: 做饭中 ============
-const CookingScene: React.FC = () => {
+// ============ 场景2: 视频主体 + CT叠加 (90-450帧 = 12秒) ============
+const MainScene: React.FC<SurgeryVideoProps> = ({
+  videoUrl1,
+  videoUrl2,
+  ctImageUrl,
+  seed = 42,
+  accentColor = '#3b82f6',
+}) => {
   const frame = useCurrentFrame();
-  const relativeFrame = frame - 50;
+  const relativeFrame = frame - 90;
+  const { fps, width, height } = useVideoConfig();
+  const [currentVideo, setCurrentVideo] = useState(0);
+  const [showCT, setShowCT] = useState(false);
 
-  // 食材飞入
-  const ingredient1X = interpolate(Math.max(0, relativeFrame - 0), [0, 20], [-200, 0]);
-  const ingredient2X = interpolate(Math.max(0, relativeFrame - 8), [0, 20], [200, 0]);
-  const ingredient3X = interpolate(Math.max(0, relativeFrame - 16), [0, 20], [-150, 0]);
+  // 每4秒切换一次视频
+  const clipDuration = fps * 4;
+  const currentClip = Math.floor(relativeFrame / clipDuration) % 2;
 
-  // 锅铲翻炒动画
-  const spatulaAngle = interpolate(frame, [50, 70, 90, 110], [0, -30, 30, 0]);
+  // CT 图像淡入淡出
+  const ctOpacity = showCT ? interpolate(fadeIn(relativeFrame % clipDuration, 10), [0, 1], [0, 0.85]) : 0;
 
-  // 蒸汽上升
-  const steam1Y = interpolate(Math.max(0, frame - 50), [0, 30], [0, -60]);
-  const steam2Y = interpolate(Math.max(0, frame - 55), [0, 30], [0, -50]);
+  // 视频进度（每个片段从头开始播）
+  const clipFrame = relativeFrame % clipDuration;
+
+  // CT 图像定时显示
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowCT(prev => !prev);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 视频片段
+  const videoUrls = [videoUrl1, videoUrl2].filter(Boolean);
+  const activeVideoUrl = videoUrls[currentClip] || videoUrl1 || '';
+
+  // 底部进度条
+  const progressWidth = interpolate(relativeFrame, [0, 360], [0, 100]);
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#FFEAA7',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: 'Arial, sans-serif',
+        backgroundColor: '#1a1a2e',
+        overflow: 'hidden',
       }}
     >
-      {/* 标题 */}
+      {/* 视频背景 */}
+      {activeVideoUrl && (
+        <Video
+          src={activeVideoUrl}
+          startFrom={currentClip * clipDuration}
+          style={{ opacity: 0.7, objectFit: 'cover' }}
+        />
+      )}
+
+      {/* 渐变遮罩 */}
       <div
         style={{
           position: 'absolute',
-          top: 30,
-          color: '#D35400',
-          fontSize: 32,
-          fontWeight: 700,
+          inset: 0,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.5) 100%)',
         }}
-      >
-        🍳 一起做饭吧！
-      </div>
+      />
 
-      {/* 食材飞入区 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 100,
-          display: 'flex',
-          gap: 30,
-          fontSize: 50,
-        }}
-      >
-        <span style={{ transform: `translateX(${ingredient1X}px)` }}>🥕</span>
-        <span style={{ transform: `translateX(${ingredient2X}px)` }}>🍖</span>
-        <span style={{ transform: `translateX(${ingredient3X}px)` }}>🧅</span>
-      </div>
-
-      {/* 灶台和锅 */}
-      <div style={{ position: 'relative', marginTop: 60 }}>
-        {/* 锅 */}
-        <div style={{ fontSize: 140 }}>🍳</div>
-        {/* 锅铲 */}
+      {/* CT 图像叠加（右下角） */}
+      {ctImageUrl && (
         <div
           style={{
             position: 'absolute',
-            top: 20,
-            right: -50,
-            fontSize: 50,
-            transform: `rotate(${spatulaAngle}deg)`,
+            bottom: 40,
+            right: 40,
+            width: 280,
+            height: 220,
+            borderRadius: 12,
+            overflow: 'hidden',
+            border: `2px solid ${accentColor}`,
+            boxShadow: `0 0 20px ${accentColor}60`,
+            opacity: ctOpacity,
+            transform: showCT ? 'scale(1)' : 'scale(0.8)',
           }}
         >
-          🥄
+          <Img
+            src={ctImageUrl}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+          {/* CT 标签 */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: 'rgba(0,0,0,0.7)',
+              color: 'white',
+              fontSize: 12,
+              fontFamily: 'Arial, sans-serif',
+              padding: '4px 8px',
+              textAlign: 'center',
+            }}
+          >
+            CT DIAGNOSTIC
+          </div>
         </div>
-        {/* 蒸汽 */}
-        {frame > 50 && (
-          <>
-            <div
-              style={{
-                position: 'absolute',
-                top: -10,
-                left: 30,
-                fontSize: 30,
-                opacity: 0.7,
-                transform: `translateY(${steam1Y}px)`,
-              }}
-            >
-              💨
-            </div>
-            <div
-              style={{
-                position: 'absolute',
-                top: -5,
-                left: 70,
-                fontSize: 24,
-                opacity: 0.5,
-                transform: `translateY(${steam2Y}px)`,
-              }}
-            >
-              💨
-            </div>
-          </>
-        )}
-      </div>
+      )}
 
-      {/* 橘猫厨师 */}
+      {/* 左上角视频片段指示 */}
       <div
         style={{
           position: 'absolute',
-          bottom: 60,
-          fontSize: 60,
+          top: 20,
+          left: 20,
+          display: 'flex',
+          gap: 8,
         }}
       >
-        🐱✨
+        {[0, 1].map(i => (
+          <div
+            key={i}
+            style={{
+              width: 40,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: i === currentClip ? accentColor : 'rgba(255,255,255,0.3)',
+              transform: `scaleX(${i === currentClip ? 1 : 0.6})`,
+            }}
+          />
+        ))}
       </div>
 
-      {/* 进度条 */}
+      {/* 底部进度条 */}
       <div
         style={{
           position: 'absolute',
-          bottom: 30,
-          width: 300,
-          height: 12,
-          backgroundColor: '#DDD',
-          borderRadius: 6,
-          overflow: 'hidden',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          backgroundColor: 'rgba(255,255,255,0.1)',
         }}
       >
         <div
           style={{
-            width: `${interpolate(relativeFrame, [0, 50], [0, 100])}%`,
+            width: `${progressWidth}%`,
             height: '100%',
-            backgroundColor: '#E67E22',
-            borderRadius: 6,
+            backgroundColor: accentColor,
+            borderRadius: '0 2px 2px 0',
           }}
         />
       </div>
@@ -273,149 +293,40 @@ const CookingScene: React.FC = () => {
   );
 };
 
-// ============ 场景3: 美食完成 ============
-const FinalScene: React.FC = () => {
-  const frame = useCurrentFrame();
-  const relativeFrame = frame - 100;
-
-  // 美食盘子放大弹出
-  const dishScale = bounceIn(relativeFrame, 10, { damping: 80, stiffness: 100 });
-
-  // 爱心飞出
-  const heartsOpacity = fadeIn(relativeFrame, 20);
-  const heart1Scale = bounceIn(relativeFrame, 20);
-  const heart2Scale = bounceIn(relativeFrame, 23);
-
-  // 喵喵叫文字
-  const meowOpacity = fadeIn(relativeFrame, 15);
-
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: '#FDEDEC',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: 'Arial, sans-serif',
-      }}
-    >
-      {/* 标题 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 40,
-          color: '#E74C3C',
-          fontSize: 36,
-          fontWeight: 700,
-          opacity: fadeIn(relativeFrame, 0),
-        }}
-      >
-        🎉 美食完成！
-      </div>
-
-      {/* 美食盘子 */}
-      <div
-        style={{
-          fontSize: 140,
-          transform: `scale(${dishScale})`,
-        }}
-      >
-        🍲
-      </div>
-
-      {/* 配菜 */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 20,
-          marginTop: 10,
-          fontSize: 40,
-          opacity: fadeIn(relativeFrame, 15),
-        }}
-      >
-        <span>🍚</span>
-        <span>🥬</span>
-        <span>🍳</span>
-      </div>
-
-      {/* 爱心 */}
-      {heartsOpacity > 0 && (
-        <>
-          <div
-            style={{
-              position: 'absolute',
-              top: '40%',
-              left: '30%',
-              fontSize: 30,
-              opacity: heartsOpacity,
-              transform: `scale(${heart1Scale})`,
-            }}
-          >
-            ❤️
-          </div>
-          <div
-            style={{
-              position: 'absolute',
-              top: '45%',
-              right: '30%',
-              fontSize: 24,
-              opacity: heartsOpacity * 0.8,
-              transform: `scale(${heart2Scale})`,
-            }}
-          >
-            ❤️
-          </div>
-        </>
-      )}
-
-      {/* 橘猫 */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 80,
-          fontSize: 70,
-          opacity: fadeIn(relativeFrame, 5),
-        }}
-      >
-        🐱🍳
-      </div>
-
-      {/* 喵喵文字 */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 40,
-          color: '#E67E22',
-          fontSize: 26,
-          fontWeight: 600,
-          opacity: meowOpacity,
-        }}
-      >
-        喵呜～ 好吃！😋
-      </div>
-    </AbsoluteFill>
-  );
-};
-
 // ============ 主视频组件 ============
-export const DemoVideo: React.FC = () => {
+export const SurgeryVideo: React.FC<SurgeryVideoProps> = (props) => {
+  const { seed = 42, accentColor = '#3b82f6' } = props;
+
+  // 固定使用的视频 URL（来自云存储）
+  const VIDEO_URL_1 = 'https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4';
+  const VIDEO_URL_2 = 'https://commondatastorage.googleapis.comGTv-videos-bucket/sample/ForBiggerJoyrides.mp4';
+
+  // CT 图片（来自 F 盘）
+  const CT_IMAGE = 'https://raw.githubusercontent.com/yumufeixue/medical-ct-images/main/ct-sample.jpg';
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
-      {/* 场景1: 登场 (0-50帧) */}
-      <Sequence from={0} durationInFrames={50}>
-        <ChefScene />
+      {/* 片头 0-90帧 (3秒) */}
+      <Sequence from={0} durationInFrames={90}>
+        <OpeningScene
+          hospitalName={props.hospitalName || '仁和医院'}
+          accentColor={accentColor || '#3b82f6'}
+        />
       </Sequence>
 
-      {/* 场景2: 做饭 (50-100帧) */}
-      <Sequence from={50} durationInFrames={50}>
-        <CookingScene />
-      </Sequence>
-
-      {/* 场景3: 完成 (100-150帧) */}
-      <Sequence from={100} durationInFrames={50}>
-        <FinalScene />
+      {/* 主体 90-450帧 (12秒) */}
+      <Sequence from={90} durationInFrames={360}>
+        <MainScene
+          {...props}
+          videoUrl1={VIDEO_URL_1}
+          videoUrl2={VIDEO_URL_2}
+          ctImageUrl={CT_IMAGE}
+          seed={seed}
+          accentColor={accentColor}
+        />
       </Sequence>
     </AbsoluteFill>
   );
 };
 
-export default DemoVideo;
+export default SurgeryVideo;
