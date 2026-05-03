@@ -42,7 +42,7 @@ jobs:
           aws-region: ${{ inputs.aws_region }}
 
       - name: Deploy Remotion Lambda functions
-        run: npx remotion lambda deploy --region ${{ inputs.aws_region }}
+        run: npx remotion lambda functions deploy --region ${{ inputs.aws_region }}
 
       - name: Output deployed info
         run: |
