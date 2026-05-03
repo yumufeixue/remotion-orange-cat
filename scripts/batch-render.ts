@@ -1,139 +1,140 @@
 /**
- * 批量渲染脚本 - 自动生成多个视频
+ * 批量渲染脚本 - 生成10个不同版本的手术视频
+ * 
+ * 使用 Lambda 云端渲染，无需本地 Chrome
  * 
  * 使用方式:
- * 1. 先构建 bundle: npm run bundle
- * 2. 然后运行: npx ts-node batch-render.ts
- * 
- * 或直接运行（开发模式）:
- * npx ts-node batch-render-dev.ts
+ *   npx ts-node scripts/batch-render.ts
  */
 
 import path from 'path';
-import fs from 'fs';
+import { promises as fs } from 'fs';
 
-// 模拟数据 - 可以来自 CSV、数据库、API 等
-const videoData = [
-  {
-    title: 'Q1 季度汇报',
-    subtitle: '2026年第一季度总结',
-    backgroundColor: '#0f172a',
-    accentColor: '#3b82f6',
-    outputName: 'q1-report',
-  },
-  {
-    title: '产品发布会',
-    subtitle: '全新产品震撼发布',
-    backgroundColor: '#1a0a2e',
-    accentColor: '#9333ea',
-    outputName: 'product-launch',
-  },
-  {
-    title: '用户增长报告',
-    subtitle: '月活用户突破 100 万',
-    backgroundColor: '#0a1f1a',
-    accentColor: '#10b981',
-    outputName: 'growth-report',
-  },
-  {
-    title: '年度总结',
-    subtitle: '2026 年度回顾',
-    backgroundColor: '#1f0a0a',
-    accentColor: '#ef4444',
-    outputName: 'annual-summary',
-  },
+// ============ 渲染配置 ============
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const COMPOSITION = 'SurgeryVideo';  // Video.tsx 导出的组件名
+const ENTRY_POINT = path.join(__dirname, '..', 'src', 'index.ts');
+
+// 视频规格
+const FPS = 30;
+const DURATION = 15; // 秒
+const TOTAL_FRAMES = FPS * DURATION; // 450帧
+
+// 输出目录
+const OUTPUT_DIR = path.join(__dirname, '..', 'out');
+
+// ============ 10个不同版本的配置 ============
+interface VideoConfig {
+  id: number;
+  hospitalName: string;
+  accentColor: string;
+  seed: number;
+  outputName: string;
+}
+
+const VIDEO_CONFIGS: VideoConfig[] = [
+  { id: 1, hospitalName: '仁和医院',      accentColor: '#3b82f6', seed: 101, outputName: '01_仁和医院_蓝.mp4' },
+  { id: 2, hospitalName: '中山大学附属医院', accentColor: '#10b981', seed: 202, outputName: '02_中山医院_绿.mp4' },
+  { id: 3, hospitalName: '北京协和医院',    accentColor: '#ef4444', seed: 303, outputName: '03_协和医院_红.mp4' },
+  { id: 4, hospitalName: '华西医院',        accentColor: '#f59e0b', seed: 404, outputName: '04_华西医院_橙.mp4' },
+  { id: 5, hospitalName: '复旦大学附属医院', accentColor: '#8b5cf6', seed: 505, outputName: '05_复旦医院_紫.mp4' },
+  { id: 6, hospitalName: '同济医院',        accentColor: '#06b6d4', seed: 606, outputName: '06_同济医院_青.mp4' },
+  { id: 7, hospitalName: '南方医科大学',     accentColor: '#ec4899', seed: 707, outputName: '07_南方医大_粉.mp4' },
+  { id: 8, hospitalName: '浙江省人民医院',   accentColor: '#84cc16', seed: 808, outputName: '08_浙江医院_黄绿.mp4' },
+  { id: 9, hospitalName: '武汉大学人民医院', accentColor: '#f97316', seed: 909, outputName: '09_武大医院_深橙.mp4' },
+  { id: 10, hospitalName: '交通大学医学院',  accentColor: '#14b8a6', seed: 1010, outputName: '10_交大医学院_青绿.mp4' },
 ];
 
-// 确保输出目录存在
-const outputDir = path.join(__dirname, '..', 'out');
-if (!fs.existsSync(outputDir)) {
-  fs.mkdirSync(outputDir, { recursive: true });
-}
-
-console.log('📊 批量视频生成任务已启动');
-console.log(`📁 输出目录: ${outputDir}`);
-console.log(`📹 待生成视频数量: ${videoData.length}\n`);
-
-// 渲染配置
-const fps = 30;
-const durationInFrames = 150; // 5秒视频
-
-// TODO: 实际渲染时取消注释下面的代码
-/*
-import { render } from '@remotion/cli';
-import { bundle } from '@remotion/bundler';
-
-async function renderVideo(data: typeof videoData[0]) {
-  const startTime = Date.now();
+// ============ Lambda 渲染函数 ============
+async function renderVideoLambda(config: VideoConfig): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+  const { renderOnLambda } = await import('@remotion/lambda');
   
+  const inputProps = {
+    hospitalName: config.hospitalName,
+    accentColor: config.accentColor,
+    seed: config.seed,
+  };
+
   try {
-    console.log(`🎬 正在生成: ${data.outputName}`);
-    
-    // 1. 打包 Remotion 项目
-    const bundleLocation = await bundle({
-      entryPoint: path.join(__dirname, 'index.ts'),
-      on BundleProgress: (progress) => {
-        if (progress.stage === 'bundling') {
-          process.stdout.write(`\r📦 打包中... ${Math.round(progress.progress * 100)}%`);
-        }
-      },
+    console.log(`🎬 [${config.id}/10] 开始渲染: ${config.outputName}`);
+    console.log(`   医院: ${config.hospitalName} | 颜色: ${config.accentColor} | 种子: ${config.seed}`);
+
+    const result = await renderOnLambda({
+      region: AWS_REGION,
+      serveUrl: process.env.REMOTION_SERVE_URL || '',
+      compositionId: COMPOSITION,
+      entryPoint: ENTRY_POINT,
+      inputProps,
+      framesPerLambda: 150,
+      outputFormat: 'mp4',
+      quality: 80,
+      fps: FPS,
+      frameRange: [0, TOTAL_FRAMES],
+      // 使用 Memory IAM 角色
+      concurrency: 2,
     });
 
-    console.log('\n🚀 开始渲染...');
-
-    // 2. 渲染视频
-    await render({
-      serveUrl: bundleLocation,
-      compositionId: 'DemoVideo',
-      outputLocation: path.join(outputDir, `${data.outputName}.mp4`),
-      inputProps: {
-        title: data.title,
-        subtitle: data.subtitle,
-        backgroundColor: data.backgroundColor,
-        accentColor: data.accentColor,
-      },
-      quality: 100,
-      fps,
-      frameRange: [0, durationInFrames],
-    });
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`✅ 完成: ${data.outputName}.mp4 (耗时 ${duration}s)\n`);
-  } catch (error) {
-    console.error(`❌ 渲染失败: ${data.outputName}`, error);
+    console.log(`   ✅ 完成! Render ID: ${result.renderId}`);
+    return { success: true, outputPath: result.outputPath };
+  } catch (error: any) {
+    console.error(`   ❌ 失败: ${error.message}`);
+    return { success: false, error: error.message };
   }
 }
 
+// ============ 主流程 ============
 async function main() {
-  console.time('总耗时');
-  
-  for (const data of videoData) {
-    await renderVideo(data);
+  console.log('='.repeat(60));
+  console.log('🏥 批量手术视频生成器 - 10个版本');
+  console.log('='.repeat(60));
+  console.log(`📁 输出目录: ${OUTPUT_DIR}`);
+  console.log(`🎞️  视频规格: ${FPS}fps | ${DURATION}秒 | ${TOTAL_FRAMES}帧`);
+  console.log(`☁️  AWS区域: ${AWS_REGION}`);
+  console.log();
+
+  // 确保输出目录存在
+  await fs.mkdir(OUTPUT_DIR, { recursive: true });
+
+  const startTime = Date.now();
+  const results: { config: VideoConfig; result: Awaited<ReturnType<typeof renderVideoLambda>> }[] = [];
+
+  // 逐个渲染（避免并发过高）
+  for (const config of VIDEO_CONFIGS) {
+    const result = await renderVideoLambda(config);
+    results.push({ config, result });
+    
+    // 渲染间隔（避免 AWS 限流）
+    if (config.id < VIDEO_CONFIGS.length) {
+      console.log(`   ⏳ 等待 3 秒后继续...\n`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
-  
-  console.timeEnd('总耗时');
-  console.log('\n🎉 全部视频生成完成！');
+
+  // ============ 汇总报告 ============
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+  const successCount = results.filter(r => r.result.success).length;
+
+  console.log('\n' + '='.repeat(60));
+  console.log('📊 渲染报告');
+  console.log('='.repeat(60));
+  console.log(`⏱️  总耗时: ${totalTime}s`);
+  console.log(`✅ 成功: ${successCount}/10`);
+  console.log(`❌ 失败: ${10 - successCount}/10`);
+  console.log();
+  console.log('详细结果:');
+  results.forEach(({ config, result }) => {
+    const status = result.success ? '✅' : '❌';
+    console.log(`  ${status} ${config.outputName} - ${result.success ? '渲染完成' : result.error}`);
+  });
+
+  console.log('\n📁 所有视频已保存至:', OUTPUT_DIR);
+  console.log('='.repeat(60));
+
+  // 如果有失败的，输出 IAM 配置提示
+  if (successCount < 10) {
+    console.log('\n⚠️  部分渲染失败，请检查 IAM 权限配置');
+    console.log('   所需权限: lambda:*, iam:PassRole 等');
+  }
 }
 
-main();
-*/
-
-// 当前打印配置信息（实际渲染需要安装依赖）
-console.log('📋 渲染配置:');
-console.log(`   - FPS: ${fps}`);
-console.log(`   - 时长: ${durationInFrames / fps} 秒`);
-console.log(`   - 分辨率: 1920x1080 (默认)\n`);
-
-console.log('🎨 视频列表:');
-videoData.forEach((data, index) => {
-  console.log(`   ${index + 1}. ${data.title}`);
-  console.log(`      - 副标题: ${data.subtitle}`);
-  console.log(`      - 主色: ${data.accentColor}`);
-  console.log(`      - 输出: out/${data.outputName}.mp4\n`);
-});
-
-console.log('💡 要执行实际渲染，请运行:');
-console.log('   1. cd remotion-demo');
-console.log('   2. npm install');
-console.log('   3. npm run bundle');
-console.log('   4. npx ts-node scripts/batch-render.ts');
+main().catch(console.error);
