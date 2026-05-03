@@ -53,7 +53,7 @@ jobs:
 
       - name: Render video on Lambda
         run: |
-          npx remotion lambda render "${{ inputs.composition }}" "${{ inputs.output }}" --region ${{ inputs.aws_region }}
+          npx remotion lambda functions render "${{ inputs.composition }}" "${{ inputs.output }}" --region ${{ inputs.aws_region }}
 
       - name: Upload video artifact
         uses: actions/upload-artifact@v4
