@@ -1,5 +1,5 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
-import { DemoVideo } from './Video';
+import { SurgeryVideo } from './Video';
 
-export default DemoVideo;
+export default SurgeryVideo;
