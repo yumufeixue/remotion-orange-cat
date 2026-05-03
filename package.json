@@ -10,12 +10,13 @@
     "preview": "remotion preview src/index.ts"
   },
   "dependencies": {
-    "@remotion/cli": "^4.0.0",
-    "@remotion/bundler": "^4.0.0",
-    "@remotion/lambda": "^4.0.0",
+    "@remotion/cli": "4.0.454",
+    "@remotion/bundler": "4.0.454",
+    "@remotion/lambda": "4.0.454",
+    "@remotion/renderer": "4.0.454",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "remotion": "^4.0.0"
+    "remotion": "4.0.454"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
