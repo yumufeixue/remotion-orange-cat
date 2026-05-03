@@ -32,7 +32,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --ignore-scripts
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -46,6 +46,6 @@ jobs:
 
       - name: Output deployed info
         run: |
-          echo "✅ Lambda functions deployed successfully!"
-          echo "Reminder: Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as repository secrets"
-          echo "for automated workflow runs (Settings → Secrets and variables → Actions)"
+          echo '✅ Lambda functions deployed successfully!'
+          echo 'Reminder: Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as repository secrets'
+          echo 'for automated workflow runs (Settings → Secrets and variables → Actions)'
